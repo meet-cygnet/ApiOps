@@ -1,0 +1,31 @@
+name: Publish to APIM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Install Publisher Tool
+      run: |
+        dotnet tool install -g Microsoft.Azure.ApiManagement.ArmTemplates
+
+    - name: Deploy ARM Templates to APIM
+      run: |
+        publisher publish \
+          --resourceGroup ${{ secrets.TARGET_RG }} \
+          --apimServiceName ${{ secrets.TARGET_APIM }} \
+          --templatesFolder ./output \
+          --deploymentMode complete
