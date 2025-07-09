@@ -1,0 +1,29 @@
+name: Extract APIM Configuration
+
+on:
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Install Extractor Tool
+      run: |
+        dotnet tool install -g Microsoft.Azure.ApiManagement.ArmTemplates
+
+    - name: Run Extractor
+      run: |
+        extractor extract \
+          --sourceApimName ${{ secrets.SOURCE_APIM }} \
+          --resourceGroup ${{ secrets.SOURCE_RG }} \
+          --destinationFolder ./output \
+          --apiName "*"
