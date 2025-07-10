@@ -1,0 +1,65 @@
+name: Deploy Changed APIs to Azure APIM
+
+on:
+  push:
+    branches:
+      - main
+    # Optional filter: only run if something in `apis/` changes
+    paths:
+      - 'apis/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Fetch main branch for diff
+      run: git fetch origin main
+
+    - name: Detect changed Swagger files
+      id: changes
+      run: |
+        changed=$(git diff --name-only origin/main...HEAD | grep 'apis/.*/swagger.json' || true)
+        echo "CHANGED_FILES<<EOF" >> $GITHUB_ENV
+        echo "$changed" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+
+    - name: Deploy changed APIs to APIM
+      if: env.CHANGED_FILES != ''
+      run: |
+        echo "Changed swagger files:"
+        echo "$CHANGED_FILES"
+
+        for file in $CHANGED_FILES; do
+          apiName=$(basename $(dirname $file))
+          backendUrl="http://${apiName}.internal.company.local"  # Or https:// if needed
+
+          echo "Deploying API: $apiName"
+          echo "Swagger file: $file"
+          echo "Backend URL: $backendUrl"
+
+          az apim api import \
+            --resource-group ${{ secrets.APIM_RESOURCE_GROUP }} \
+            --service-name ${{ secrets.APIM_NAME }} \
+            --path $apiName \
+            --api-id $apiName \
+            --specification-format OpenApi \
+            --specification-path $file \
+            --display-name $apiName \
+            --protocols Https
+
+          echo "Setting backend URL to: $backendUrl"
+          az apim api update \
+            --resource-group ${{ secrets.APIM_RESOURCE_GROUP }} \
+            --service-name ${{ secrets.APIM_NAME }} \
+            --api-id $apiName \
+            --set serviceUrl=$backendUrl
+        done
